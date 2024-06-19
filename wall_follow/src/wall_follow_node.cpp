@@ -3,6 +3,9 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
+#include <vector>
+#include <cmath>
+#include <limits>
 
 using namespace std;
 
@@ -41,12 +44,12 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drive_publisher_;
 
-    double get_range(const vector<float>& ranges, double angle, const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
+    double get_range(const vector<float>& ranges, double angle, const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
     {
         // Find the index of the angle in the range data
-        int index = (angle - scan_msg->angle_min) / scan_msg->angle_increment;
+        int index = static_cast<int>((angle - scan_msg->angle_min) / scan_msg->angle_increment);
 
-        if (index < 0 || index >= ranges.size())
+        if (index < 0 || static_cast<size_t>(index) >= ranges.size())
         {
             return numeric_limits<double>::quiet_NaN();  // Return NaN if index is out of bounds
         }
@@ -54,7 +57,7 @@ private:
         return ranges[index];
     }
 
-    double get_error(const vector<float>& ranges, double desired_distance, const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
+    double get_error(const vector<float>& ranges, double desired_distance, const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg)
     {
         // Define the angles to get range data from LIDAR
         double theta = 45.0 * M_PI / 180.0;  // 45 degrees in radians

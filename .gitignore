@@ -1,5 +1,99 @@
-**/__pycache__/
-**/build/
-**/install/
-**/log/
+# ROS 2 workspace files
+build/
+install/
+log/
+.colcon/
+.colcon_install_layout
+
+# Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VSCode settings
 .vscode/
+*.code-workspace
+
+# macOS files
+.DS_Store
+
+# Windows files
+Thumbs.db
+
+# IDEs and editors
+.idea/
+*.iml
+*.swp
+*~
+
+# Docker files
+docker-compose.yml
+.Dockerfile
+.dockerignore
+
+# Logs
+*.log
+*.out
+*.err
+
+# Python virtual environment
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Cache
+*.cache
+*.pytest_cache/
+
+# Packages
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+
+# Test results
+test-results/
+
+# Anaconda
+.conda/
+
+# Jupyter Notebook
+*.ipynb_checkpoints
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Coverage
+.coverage
+*.cover
+
+# PyCharm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# PyCharm - Code management
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Sphinx documentation

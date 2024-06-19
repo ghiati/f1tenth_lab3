@@ -15,21 +15,20 @@ class WallFollow(Node):
         lidarscan_topic = '/scan'
         drive_topic = '/drive'
 
-        # TODO: create subscribers and publishers
+        # Create subscribers and publishers
+        self.lidar_subscriber = self.create_subscription(LaserScan, lidarscan_topic, self.scan_callback, 10)
+        self.drive_publisher = self.create_publisher(AckermannDriveStamped, drive_topic, 10)
 
-        # TODO: set PID gains
-        # self.kp = 
-        # self.kd = 
-        # self.ki = 
+        # Set PID gains
+        self.kp = 1.0
+        self.kd = 0.1
+        self.ki = 0.01
 
-        # TODO: store history
-        # self.integral = 
-        # self.prev_error = 
-        # self.error = 
+        # Store history for PID
+        self.integral = 0.0
+        self.prev_error = 0.0
 
-        # TODO: store any necessary values you think you'll need
-
-    def get_range(self, range_data, angle):
+    def get_range(self, range_data, angle, angle_min, angle_increment):
         """
         Simple helper to return the corresponding range measurement at a given angle. Make sure you take care of NaNs and infs.
 
@@ -39,13 +38,14 @@ class WallFollow(Node):
 
         Returns:
             range: range measurement in meters at the given angle
-
         """
+        # Calculate the index in the range array for the given angle
+        index = int((angle - angle_min) / angle_increment)
+        if index < 0 or index >= len(range_data) or np.isnan(range_data[index]) or np.isinf(range_data[index]):
+            return float('inf')
+        return range_data[index]
 
-        #TODO: implement
-        return 0.0
-
-    def get_error(self, range_data, dist):
+    def get_error(self, range_data, dist, angle_min, angle_increment):
         """
         Calculates the error to the wall. Follow the wall to the left (going counter clockwise in the Levine loop). You potentially will need to use get_range()
 
@@ -56,9 +56,13 @@ class WallFollow(Node):
         Returns:
             error: calculated error
         """
-
-        #TODO:implement
-        return 0.0
+        theta = np.deg2rad(45)  # 45 degrees in radians
+        a = self.get_range(range_data, theta, angle_min, angle_increment)
+        b = self.get_range(range_data, 0, angle_min, angle_increment)
+        alpha = np.arctan((a * np.cos(theta) - b) / (a * np.sin(theta)))
+        D_t = b * np.cos(alpha)
+        error = D_t - dist
+        return error
 
     def pid_control(self, error, velocity):
         """
@@ -71,12 +75,17 @@ class WallFollow(Node):
         Returns:
             None
         """
-        angle = 0.0
-        # TODO: Use kp, ki & kd to implement a PID controller
-        drive_msg = AckermannDriveStamped()
-        # TODO: fill in drive message and publish
+        self.integral += error
+        derivative = error - self.prev_error
+        angle = self.kp * error + self.ki * self.integral + self.kd * derivative
+        self.prev_error = error
 
-    def scan_callback(self, msg):
+        drive_msg = AckermannDriveStamped()
+        drive_msg.drive.steering_angle = angle
+        drive_msg.drive.speed = velocity
+        self.drive_publisher.publish(drive_msg)
+
+    def scan_callback(self, scan_msg):
         """
         Callback function for LaserScan messages. Calculate the error and publish the drive message in this function.
 
@@ -86,9 +95,11 @@ class WallFollow(Node):
         Returns:
             None
         """
-        error = 0.0 # TODO: replace with error calculated by get_error()
-        velocity = 0.0 # TODO: calculate desired car velocity based on error
-        self.pid_control(error, velocity) # TODO: actuate the car with PID
+        desired_distance = 1.0  # Desired distance to the wall in meters
+        velocity = 1.0  # Desired velocity of the car
+
+        error = self.get_error(scan_msg.ranges, desired_distance, scan_msg.angle_min, scan_msg.angle_increment)
+        self.pid_control(error, velocity)
 
 
 def main(args=None):
@@ -98,8 +109,6 @@ def main(args=None):
     rclpy.spin(wall_follow_node)
 
     # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
     wall_follow_node.destroy_node()
     rclpy.shutdown()
 

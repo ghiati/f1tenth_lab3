@@ -4,102 +4,104 @@
 #include "nav_msgs/msg/odometry.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 
-class WallFollow : public rclcpp::Node {
+using namespace std;
 
+class WallFollow : public rclcpp::Node {
 public:
     WallFollow() : Node("wall_follow_node")
     {
-        // TODO: create ROS subscribers and publishers
+        // Initialize the subscriber to LIDAR scan data
+        scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            lidarscan_topic, 10, bind(&WallFollow::scan_callback, this, placeholders::_1));
+
+        // Initialize the publisher for the drive commands
+        drive_publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(
+            drive_topic, 10);
+        
+        // Initialize PID control parameters
+        kp = 1.0;
+        kd = 0.1;
+        ki = 0.0;
     }
 
 private:
-    // PID CONTROL PARAMS
-    // TODO: double kp =
-    // TODO: double kd =
-    // TODO: double ki =
+    // PID Control Parameters
+    double kp;
+    double kd;
+    double ki;
     double servo_offset = 0.0;
     double prev_error = 0.0;
-    double error = 0.0;
     double integral = 0.0;
 
     // Topics
-    std::string lidarscan_topic = "/scan";
-    std::string drive_topic = "/drive";
-    /// TODO: create ROS subscribers and publishers
+    string lidarscan_topic = "/scan";
+    string drive_topic = "/drive";
 
-    double get_range(float* range_data, double angle)
+    // ROS Subscriber and Publisher
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr drive_publisher_;
+
+    double get_range(const vector<float>& ranges, double angle, const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
     {
-        /*
-        Simple helper to return the corresponding range measurement at a given angle. Make sure you take care of NaNs and infs.
+        // Find the index of the angle in the range data
+        int index = (angle - scan_msg->angle_min) / scan_msg->angle_increment;
 
-        Args:
-            range_data: single range array from the LiDAR
-            angle: between angle_min and angle_max of the LiDAR
+        if (index < 0 || index >= ranges.size())
+        {
+            return numeric_limits<double>::quiet_NaN();  // Return NaN if index is out of bounds
+        }
 
-        Returns:
-            range: range measurement in meters at the given angle
-        */
-
-        // TODO: implement
-        return 0.0;
+        return ranges[index];
     }
 
-    double get_error(float* range_data, double dist)
+    double get_error(const vector<float>& ranges, double desired_distance, const sensor_msgs::msg::LaserScan::SharedPtr scan_msg)
     {
-        /*
-        Calculates the error to the wall. Follow the wall to the left (going counter clockwise in the Levine loop). You potentially will need to use get_range()
+        // Define the angles to get range data from LIDAR
+        double theta = 45.0 * M_PI / 180.0;  // 45 degrees in radians
 
-        Args:
-            range_data: single range array from the LiDAR
-            dist: desired distance to the wall
+        // Get ranges at 45 degrees and 0 degrees
+        double front_range = get_range(ranges, 0, scan_msg);
+        double side_range = get_range(ranges, theta, scan_msg);
 
-        Returns:
-            error: calculated error
-        */
+        // Calculate error using the difference between actual and desired distances
+        double error = desired_distance - side_range;
 
-        // TODO:implement
-        return 0.0;
+        return error;
     }
 
     void pid_control(double error, double velocity)
     {
-        /*
-        Based on the calculated error, publish vehicle control
-
-        Args:
-            error: calculated error
-            velocity: desired velocity
-
-        Returns:
-            None
-        */
         double angle = 0.0;
-        // TODO: Use kp, ki & kd to implement a PID controller
+        
+        // PID calculations
+        integral += error;
+        double derivative = error - prev_error;
+        angle = kp * error + ki * integral + kd * derivative;
+        prev_error = error;
+
+        // Create and publish drive message
         auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
-        // TODO: fill in drive message and publish
+        drive_msg.drive.steering_angle = angle;
+        drive_msg.drive.speed = velocity;
+        drive_publisher_->publish(drive_msg);
     }
 
     void scan_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_msg) 
     {
-        /*
-        Callback function for LaserScan messages. Calculate the error and publish the drive message in this function.
+        double desired_distance = 1.0;  // Desired distance from the wall
+        double velocity = 1.0;  // Desired car velocity
 
-        Args:
-            msg: Incoming LaserScan message
+        // Calculate the error
+        double error = get_error(scan_msg->ranges, desired_distance, scan_msg);
 
-        Returns:
-            None
-        */
-        double error = 0.0; // TODO: replace with error calculated by get_error()
-        double velocity = 0.0; // TODO: calculate desired car velocity based on error
-        // TODO: actuate the car with PID
-
+        // Perform PID control
+        pid_control(error, velocity);
     }
-
 };
+
 int main(int argc, char ** argv) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<WallFollow>());
+    rclcpp::spin(make_shared<WallFollow>());
     rclcpp::shutdown();
     return 0;
 }
